@@ -1,0 +1,229 @@
+﻿
+@{
+    ViewBag.Title = "Employee Information (Create)";
+}
+
+<h3>Add Employee</h3>
+<hr />
+
+<form id="NewEmployeeForm">
+    <div class="form-horizontal">
+        <input type="hidden" id="Id" />
+        <div class="form-group">
+            <label class="control-label col-md-3">
+                Employee Name:
+            </label>
+            <div class="col-md-3">
+                <input type="text" id="EmployeeName" class="form-control" />
+            </div>            
+        </div>
+    </div>
+    <h4>Dependent</h4>
+    <hr />
+    <div class="form-horizontal">
+        <div class="form-group">
+            <label class="control-label col-sm-3">
+                Dependent Name:
+            </label> 
+            <div class="col-sm-3">
+                <input type="text" id="DependentName" class="form-control" />
+            </div>
+            <label class="control-label col-sm-3">
+                Relation:
+            </label> 
+            <div class="col-sm-3">
+                <select id="Relation" class="form-control">
+                    <option>-- Select --</option>
+                    <option value="1">Child</option>
+                    <option value="2">Spouse</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-3">
+                <button type="button" id="addDependent" class="btn btn-primary">Add Dependent</button>                
+            </div>
+        </div>
+        <div>
+            <table id="tableDependent" class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Relation</th>                        
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+        
+    </div>
+</form>
+<h3>Cost of Benefit</h3>
+<hr />
+
+<button type="button" id="costCalculate" class="btn btn-primary">Calculate</button>
+
+<div class="table" style="margin-top:10px" id="costPreview">
+   
+</div>
+
+@section Scripts{
+    <script>
+
+        $("#addDependent").click(function (e) {
+            e.preventDefault();
+
+            if ($.trim($("#EmployeeName").val()) == "") {
+                alert("Employee name require");
+                $("#EmployeeName").focus();
+            }
+            else if ($.trim($("#DependentName").val()) == "") {
+                alert("Dependent name require");
+                $("#DependentName").focus();
+            }
+            else if ($("#Relation").val() == "-- Select --") {
+                alert("Select relation");
+                $("#Relation").focus();
+            }
+            else {
+                addDependentToList();
+                $("#DependentName").focus();
+            }
+           
+        });
+
+        function addDependentToList() {
+            var name = $.trim($("#DependentName").val());
+            var relation = $("#Relation").val();
+            var relationTitle = $("#Relation option:selected").text();
+            //alert(relationTitle);
+            var row = '<tr><td><input type="hidden" name="DependentName" value="' + name + '" />' + name + '</td>'
+                + '<td><input type="hidden" name="DependentRelation" value="' + relation + '" />' + relationTitle + '</td>'                
+                + '<td><button type="button" onclick="removeRow(this)" class="btn btn-danger">Remove</button></td>'
+                + '</tr>';
+            //alert(row);
+            //console.log(row);
+            $("#tableDependent tbody").append(row);
+
+            clearDetail();
+            clearCost();
+
+        }
+
+        function clearDetail() {
+            $("#DependentName").val('');
+            //$("#Relation").val();
+            $("#Relation option:eq(0)").prop("selected",true);
+        }
+
+        function clearCost() {
+            $("#tableCost tbody").empty();
+        }
+
+        function removeRow(e) { 
+            $(e).parent().parent().remove();
+            clearCost();
+        }
+
+
+        $("#costCalculate").click(function (e) {
+            e.preventDefault();
+
+            var employeeName = $.trim($("#EmployeeName").val());
+
+            if (employeeName == "") {
+                alert("Employee name required.");
+                $("#EmployeeName").focus();
+                return;
+            }
+
+            var dependentName = document.getElementsByName("DependentName");
+            var dependentRelation = document.getElementsByName("DependentRelation");
+            var DItems = [];
+
+            for (var i = 0; i < dependentName.length; i++) {
+                DItems.push({ DependentName: dependentName[i].value, DependentRelation: dependentRelation[i].value});
+            }
+
+            var employeeDetail = JSON.stringify({ EmployeeName: employeeName, EmployeeDependents: DItems });
+
+            console.log(employeeDetail);
+
+            $.ajax({
+                contentType: 'application/json; charset=utf-8',
+                dataType: 'json',
+                type: 'POST',
+                url: '/Employee/GetBenefit',
+                data: employeeDetail,
+                success: function (result) {
+                    console.log(result);
+                    
+                    if (result.flag == true) {                        
+                        showCost(result);
+                    }
+                    else {
+                        alert(result.message);
+                    }
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    alert('Error: ' + textStatus + ' - ' + errorThrown);                    
+                }
+            });
+
+        });
+
+
+        function showCost(costData) {
+            console.log("from showCost");
+            console.log(costData);
+
+            //var totalBenefitCost = costData.EmployeeCost + costData.DependentCost - costData.EmployeeDiscount - costData.DependentDiscount
+
+            var content = 
+                '<div class="table" style="margin-top:10px">'
+                +'    <table class="table" id ="tableCost">'
+                +'        <tbody>'
+                +'            <tr>'
+                +'                <th>Employee Benefit Cost / Year</th>'
+                +'                <td class="text-right">'+ numeral(costData.EmployeeCost).format('0,0.00') + '</td>'
+                +'            </tr>'
+                +'            <tr>'
+                +'                <th>Dependent Benefit Cost / Year</th>'
+                + '                <td class="text-right">' + numeral(costData.DependentCost).format('0,0.00') + '</td>'
+                +'           </tr>'
+                +'           <tr>'
+                +'               <th>Employee Discount / Year</th>'
+                + '               <td class="text-right">' + numeral(costData.EmployeeDiscount).format('0,0.00') + '</td>'
+                +'           </tr>'
+                +'           <tr>'
+                +'               <th>Dependent Discout / Year</th>'
+                + '               <td class="text-right">' + numeral(costData.DependentDiscount).format('0,0.00') +'</td>'
+                +'           </tr>'
+                +'           <tr>'
+                +'               <th>Total Benefit (Employee + Dependent) Cost / Year</th>'
+                + '               <td class="text-right">' + numeral(costData.BenefitCostPerYear).format('0,0.00') +'</td>'
+                +'           </tr>'
+                +'           <tr>'
+                +'               <th>Cost / Paycheck</th>'
+                + '               <td class="text-right"><b>' + numeral(costData.BenefitCostPerStub).format('0,0.00') +'</b></td>'
+                +'           </tr>'
+                +'           <tr>'
+                +'               <th>Salary / Paycheck (after deduction)</th>'
+                + '               <td class="text-right"><b>' + numeral(costData.EmployeeNetSalaryPerPeriod).format('0,0.00') +'</b></td>'
+                +'           </tr>'
+                +'        </tbody>'
+                +'   </table>'
+                +'</div>' ;
+
+            $("#costPreview").html(content);
+
+        }
+
+    </script>  
+    
+    
+    }
+
+
